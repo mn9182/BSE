@@ -1,0 +1,113 @@
+
+class Exchange(Orderbook):
+
+        def add_order(self, order):
+                # add an order to the exchange and update all internal records
+                tid = order.tid
+                if order.otype == 'Bid':
+                        self.bids.book_add(order)
+                        best_price = self.bids.lob_anon[-1][0]
+                        self.bids.best_price = best_price
+                        self.bids.best_tid = self.bids.lob[best_price][1][0][2]
+                else:
+                        self.asks.book_add(order)
+                        best_price = self.asks.lob_anon[0][0]
+                        self.asks.best_price = best_price
+                        self.asks.best_tid = self.asks.lob[best_price][1][0][2]
+
+
+        def del_order(self, order):
+                # delete an order from the exchange, update all internal records
+                tid = order.tid
+                if order.otype == 'Bid':
+                        self.bids.book_del(order)
+                        best_price = self.bids.lob_anon[-1][0]
+                        self.bids.best_price = best_price
+                        self.bids.best_tid = self.bids.lob[best_price][1][0][2]
+                else:
+                        self.asks.book_del(order)
+                        best_price = self.asks.lob_anon[0][0]
+                        self.asks.best_price = best_price
+                        self.asks.best_tid = self.asks.lob[best_price][1][0][2]
+
+
+        def process_order2(self, time, order, verbose):
+                # receive an order and either add it to the relevant LOB (ie treat as limit order)
+                # or if it crosses the best counterparty offer, execute (treat as a market order)
+                oprice = order.price
+                counterparty = None
+                self.add_order(order)  # add it to the order lists -- overwriting any previous order
+                best_ask = self.asks.best_price
+                best_ask_tid = self.asks.best_tid
+                best_bid = self.bids.best_price
+                best_bid_tid = self.bids.best_tid
+                if order.otype == 'Bid':
+                        if self.asks.n_orders > 0 and best_bid >= best_ask:
+                                # bid hits the best ask
+                                if verbose: print("Bid hits best ask")
+                                counterparty = best_ask_tid
+                                price = best_ask  # bid crossed ask, so use ask price
+                                if verbose: print('counterparty, price', counterparty, price)
+                                # delete the ask just crossed
+                                self.asks.delete_best()
+                                # delete the bid that was the latest order
+                                self.bids.delete_best()
+                elif order.otype == 'Ask':
+                        if self.bids.n_orders > 0 and best_ask <= best_bid:
+                                # ask hits the best bid
+                                if verbose: print("Ask hits best bid")
+                                # remove the best bid
+                                counterparty = best_bid_tid
+                                price = best_bid  # ask crossed bid, so use bid price
+                                if verbose: print('counterparty, price', counterparty, price)
+                                # delete the bid just crossed, from the exchange's records
+                                self.bids.delete_best()
+                                # delete the ask that was the latest order, from the exchange's records
+                                self.asks.delete_best()
+                else:
+                        # we should never get here
+                        sys.exit('process_order() given neither Bid nor Ask')
+                # NB at this point we have deleted the order from the exchange's records
+                # but the two traders concerned still have to be notified
+                if counterparty != None:
+                        # process the trade
+                        if verbose: print('>>>>>>>>>>>>>>>>>TRADE t=%5.2f $%d %s %s' % (time, price, counterparty, order.tid))
+                        transaction_record = {'time': time,
+                                               'price': price,
+                                               'party1':counterparty,
+                                               'party2':order.tid,
+                                               'qty': order.qty}
+                        self.tape.append(transaction_record)
+                        return transaction_record
+                else:
+                        return None
+
+
+
+        def tape_dump(self, fname, fmode, tmode):
+                dumpfile = open(fname, fmode)
+                for tapeitem in self.tape:
+                        dumpfile.write('%s, %s\n' % (tapeitem['time'], tapeitem['price']))
+                dumpfile.close()
+                if tmode == 'wipe':
+                        self.tape = []
+
+
+        # this returns the LOB data "published" by the exchange,
+        # i.e., what is accessible to the traders
+        def publish_lob(self, time, verbose):
+                public_data = {}
+                public_data['time'] = time
+                public_data['bids'] = {'best':self.bids.best_price,
+                                     'worst':self.bids.worstprice,
+                                     'n': self.bids.n_orders,
+                                     'lob':self.bids.lob_anon}
+                public_data['asks'] = {'best':self.asks.best_price,
+                                     'worst':self.asks.worstprice,
+                                     'n': self.asks.n_orders,
+                                     'lob':self.asks.lob_anon}
+                if verbose:
+                        print('publish_lob: t=%d' % time)
+                        print('BID_lob=%s' % public_data['bids']['lob'])
+                        print('ASK_lob=%s' % public_data['asks']['lob'])
+                return public_data

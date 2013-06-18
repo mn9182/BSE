@@ -1,0 +1,71 @@
+
+class Trader:
+
+        def __init__(self, ttype, tid, balance,bid):
+                self.ttype = ttype
+                self.bidType = bid
+                self.tid = tid
+                self.balance = balance
+                self.blotter = []
+                self.orders = []
+                self.willing = 1
+                self.able = 1
+                self.lastquote = None
+                self.humanInput = None
+
+
+        def __str__(self):
+                return '[TID %s type %s balance %s blotter %s orders %s]' % (self.tid, self.ttype, self.balance, self.blotter, self.orders)
+
+
+        def add_order(self, order):
+                # in this version, trader has at most one order,
+                # if allow more than one, this needs to be self.orders.append(order)
+                self.orders = [order]
+                self.humanInput = None
+
+
+        def del_order(self, order):
+                # this is lazy: assumes each trader has only one order with quantity=1, so deleting sole order
+                # CHANGE TO DELETE THE HEAD OF THE LIST AND KEEP THE TAIL
+                self.orders = []
+                self.humanInput = None
+
+
+        def bookkeep(self, trade, order, verbose):
+
+                outstr = '%s (%s) bookkeeping: orders=' % (self.tid, self.ttype)
+                for order in self.orders: outstr = outstr + str(order)
+
+                self.blotter.append(trade)  # add trade record to trader's blotter
+                # NB What follows is **LAZY** -- assumes all orders are quantity=1
+                transactionprice = trade['price']
+                if self.orders[0].otype == 'Bid':
+                        profit = self.orders[0].price - transactionprice
+                else:
+                        profit = transactionprice - self.orders[0].price
+                self.balance += profit
+                if verbose: print('%s profit=%d balance=%d ' % (outstr, profit, self.balance))
+                self.del_order(order)  # delete the order
+
+
+        # specify how trader responds to events in the market
+        # this is a null action, expect it to be overloaded with clever things by specific algos
+        def respond(self, time, lob, trade, verbose):
+                return None
+
+class Trader_Giveaway(Trader):
+
+        
+        def getorder(self, time, countdown, lob):
+                if len(self.orders) < 1:
+                        order = None
+                else:
+                        quoteprice = self.orders[0].price
+                        self.lastquote = quoteprice
+                        order = Order(self.tid,
+                                    self.orders[0].otype,
+                                    quoteprice,
+                                    self.orders[0].qty,
+                                    time)
+                return order
