@@ -66,8 +66,8 @@ import csv
 import json
 import urllib2
 
-#host = "http://bse.eu01.aws.af.cm/"
-host = "http://127.0.0.1:5000/"
+host = "http://bse.eu01.aws.af.cm/"
+#host = "http://127.0.0.1:5000/"
 bse_sys_minprice = 1  #-minimum price in the system, in cents/pennies          
 bse_sys_maxprice = 1000  #-maximum price in the system, in cents/pennies       
 ticksize = 1  #-minimum change in price, in cents/pennies                      

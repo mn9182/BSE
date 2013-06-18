@@ -58,8 +58,8 @@ import os
 import urllib2
 import json
 
-#host = "http://bse.eu01.aws.af.cm/"
-host = "http://127.0.0.1:5000/"
+host = "http://bse.eu01.aws.af.cm/"
+#host = "http://127.0.0.1:5000/"
 # a client protocol
 class UI:
     def __init__(self,master):
