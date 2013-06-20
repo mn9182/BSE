@@ -66,8 +66,8 @@ import csv
 import json
 import urllib2
 
-host = "http://bse.eu01.aws.af.cm/"
-#host = "http://127.0.0.1:5000/"
+#host = "http://bse.eu01.aws.af.cm/"
+host = "http://127.0.0.1:5000/"
 bse_sys_minprice = 1  #-minimum price in the system, in cents/pennies          
 bse_sys_maxprice = 1000  #-maximum price in the system, in cents/pennies       
 ticksize = 1  #-minimum change in price, in cents/pennies                      
@@ -610,7 +610,7 @@ bg='DodgerBlue',bd=3,relief=RIDGE)
         ip_address = 'server' #gets the fake ip for the server client
         agent = self.serverClientAgentVar.get() #gets the type of trader from the dropdown list       
         type = self.serverClientTypeVar.get() #gets the bid type from the dropdown list
-        if len(self.MyFactory.serverClients) + len(self.MyFactory.clients) < self.maxTrader: #checks if the number of traders does not exceed the maximum number allowed for the session
+        if len(self.MyFactory.serverClients) + len(self.MyFactory.clients) + len(self.MyFactory.cloudClients) < self.maxTrader: #checks if the number of traders does not exceed the maximum number allowed for the session
             self.MyFactory.serverClients.append(name+':'+ip_address+':'+type+':'+agent) #appends the new server client
                        
     #-deletes the clients that are stored on the server - automated ones,      
@@ -626,10 +626,7 @@ bg='DodgerBlue',bd=3,relief=RIDGE)
             self.agentVars[ii].set('')
             ii += 1
             
-    def startSession(self):        
-        self.startBtn.grid_forget()
-        self.startBtn = Button(self.menuFrame,text="STOP SESSION",bg = self.buttoncolor,command = self.stopSession)
-        self.startBtn.grid(column=0,row=10,columnspan=2,sticky='ew')        
+    def startSession(self):              
         self.MyFactory.startSession(self.timeSpan)
     
     #-method called by the stop button that terminates the market session and 
@@ -1187,7 +1184,7 @@ class CmdProtocol(protocol.Protocol):
         #=====================================================================
         #-checks if the new connection is within the allowed number of connections
         #allowed by the server                                                 
-        if len(self.factory.clients) + len(self.factory.serverClients) >= self.factory.ui.maxTrader:            
+        if len(self.factory.clients) + len(self.factory.serverClients) + len(self.factory.cloudClients) >= self.factory.ui.maxTrader:            
             self.transport.loseConnection()
             self.STATUS = 'REJECT'
         else:
@@ -1424,14 +1421,16 @@ class MyFactory(ServerFactory):
         
         if self.sessionID != None:
             del self.cloudClients[:]
+            max = self.ui.maxTrader
+            current = len(self.clients) + len(self.serverClients) + len(self.cloudClients)
             action = "TRADERS"
             headers = {'Content-Type':'application/json'}
-            post_data = {"action":action,"sessionID":self.sessionID}
+            post_data = {"action":action,"sessionID":self.sessionID,"max":max,"current":current}
             req = urllib2.Request(host+"server", json.dumps(post_data), headers)
             response = json.loads(urllib2.urlopen(req).read())['traders']
             for client in response:
                 self.cloudClients.append(client[0])
-                self.client_names.append([client[0],'cloud',client[1],'Human'])
+                self.client_names.append([client[0],client[3],client[1],'Human'])
                               
             
         for client in self.serverClients:
@@ -1466,7 +1465,7 @@ class MyFactory(ServerFactory):
             iptr = name[1]
             typetr = name[2]
             agentr = name[3]
-            if iptr == 'cloud':
+            if name[0] in self.cloudClients:
                 cloud_traders[trader] = self.ui.clientOptionsVars[i].get()
             all_traders.append([trader,iptr,typetr,agentr])
             i += 1
@@ -1560,12 +1559,13 @@ class MyFactory(ServerFactory):
         self.exchange = Exchange()
         traders_spec = {'sellers':sellers_spec, 'buyers':buyers_spec}  
         if len(sellers_spec) > 0 and len(buyers_spec) > 0: 
+            self.ui.startBtn.grid_forget()
+            self.ui.startBtn = Button(self.ui.menuFrame,text="STOP SESSION",bg = self.ui.buttoncolor,command = self.ui.stopSession)
+            self.ui.startBtn.grid(column=0,row=10,columnspan=2,sticky='ew') 
             self.trader_stats = self.populate_market(traders_spec, self.traders)
             self.duration = float(self.end_time - self.start_time)        
             self.time = 0.0
-            self.last_update = -1.0                        
-            
-                
+            self.last_update = -1.0 
             self.session = task.LoopingCall(self.checkSession)
             self.session.start(1)    
     
